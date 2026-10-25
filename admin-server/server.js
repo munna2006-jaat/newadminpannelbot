@@ -1,68 +1,228 @@
 // server.js - Ace Pro v5.0 Master Central License Server & Live Admin Dashboard
-// Native Node.js with Zero External Dependencies (uses node:sqlite)
+// Compatible with all cPanel Node.js versions (Node 18, 20, 22+)
+// Zero External Dependencies Needed!
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'licenses.db');
+const JSON_DB_FILE = path.join(__dirname, 'licenses_data.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Initialize SQLite Database
-const db = new DatabaseSync(DB_FILE);
+// -------------------------------------------------------------
+// Universal Database Engine (SQLite in Node 22+, JSON in Node 18/20)
+// -------------------------------------------------------------
+let db;
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS admin_config (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
+try {
+  const { DatabaseSync } = require('node:sqlite');
+  db = new DatabaseSync(DB_FILE);
+  console.log("[Database] Running native SQLite (Node 22+)");
 
-  CREATE TABLE IF NOT EXISTS licenses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    license_key TEXT UNIQUE,
-    expires_at TEXT NOT NULL,
-    is_active INTEGER DEFAULT 1,
-    max_devices INTEGER DEFAULT 1,
-    bound_device TEXT,
-    bound_p2p_account TEXT,
-    p2p_gmail TEXT,
-    p2p_password TEXT,
-    balance_usdt TEXT,
-    today_orders INTEGER DEFAULT 0,
-    today_fiat REAL DEFAULT 0,
-    bot_status TEXT,
-    desk_status TEXT,
-    current_activity TEXT,
-    last_seen_at TEXT,
-    notes TEXT,
-    created_at TEXT NOT NULL,
-    last_login_at TEXT
-  );
-`);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_config (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
 
-// Migration safety check for columns
-const columnsToCheck = [
-  "ALTER TABLE licenses ADD COLUMN bound_p2p_account TEXT;",
-  "ALTER TABLE licenses ADD COLUMN p2p_gmail TEXT;",
-  "ALTER TABLE licenses ADD COLUMN p2p_password TEXT;",
-  "ALTER TABLE licenses ADD COLUMN balance_usdt TEXT;",
-  "ALTER TABLE licenses ADD COLUMN today_orders INTEGER DEFAULT 0;",
-  "ALTER TABLE licenses ADD COLUMN today_fiat REAL DEFAULT 0;",
-  "ALTER TABLE licenses ADD COLUMN bot_status TEXT;",
-  "ALTER TABLE licenses ADD COLUMN desk_status TEXT;",
-  "ALTER TABLE licenses ADD COLUMN current_activity TEXT;",
-  "ALTER TABLE licenses ADD COLUMN last_seen_at TEXT;"
-];
-for (const sql of columnsToCheck) {
-  try { db.exec(sql); } catch (e) {}
+    CREATE TABLE IF NOT EXISTS licenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      license_key TEXT UNIQUE,
+      expires_at TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      max_devices INTEGER DEFAULT 1,
+      bound_device TEXT,
+      bound_p2p_account TEXT,
+      p2p_gmail TEXT,
+      p2p_password TEXT,
+      balance_usdt TEXT,
+      today_orders INTEGER DEFAULT 0,
+      today_fiat REAL DEFAULT 0,
+      bot_status TEXT,
+      desk_status TEXT,
+      current_activity TEXT,
+      last_seen_at TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      last_login_at TEXT
+    );
+  `);
+
+  const columnsToCheck = [
+    "ALTER TABLE licenses ADD COLUMN bound_p2p_account TEXT;",
+    "ALTER TABLE licenses ADD COLUMN p2p_gmail TEXT;",
+    "ALTER TABLE licenses ADD COLUMN p2p_password TEXT;",
+    "ALTER TABLE licenses ADD COLUMN balance_usdt TEXT;",
+    "ALTER TABLE licenses ADD COLUMN today_orders INTEGER DEFAULT 0;",
+    "ALTER TABLE licenses ADD COLUMN today_fiat REAL DEFAULT 0;",
+    "ALTER TABLE licenses ADD COLUMN bot_status TEXT;",
+    "ALTER TABLE licenses ADD COLUMN desk_status TEXT;",
+    "ALTER TABLE licenses ADD COLUMN current_activity TEXT;",
+    "ALTER TABLE licenses ADD COLUMN last_seen_at TEXT;"
+  ];
+  for (const sql of columnsToCheck) {
+    try { db.exec(sql); } catch (e) {}
+  }
+} catch (err) {
+  // Fallback for cPanel running Node 18 or 20 without node:sqlite
+  console.log("[Database] Running zero-dependency JSON Storage Adapter (cPanel Node 18/20)");
+
+  class JsonDbAdapter {
+    constructor(filePath) {
+      this.filePath = filePath;
+      this.data = { admin_config: {}, licenses: [] };
+      if (fs.existsSync(filePath)) {
+        try { this.data = JSON.parse(fs.readFileSync(filePath, "utf8")); } catch(e){}
+      }
+    }
+    save() {
+      try {
+        fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf8");
+      } catch (e) {
+        console.error("Save error:", e);
+      }
+    }
+    exec() {}
+    prepare(sql) {
+      const s = sql.trim().replace(/\s+/g, " ");
+      const self = this;
+
+      if (/SELECT value FROM admin_config/i.test(s)) {
+        return {
+          get: () => {
+            const val = self.data.admin_config["admin_password"];
+            return val ? { value: val } : undefined;
+          }
+        };
+      }
+      if (/INSERT INTO admin_config/i.test(s) || /UPDATE admin_config/i.test(s)) {
+        return {
+          run: (val) => {
+            self.data.admin_config["admin_password"] = val;
+            self.save();
+          }
+        };
+      }
+      if (/SELECT \* FROM licenses ORDER BY id DESC/i.test(s)) {
+        return {
+          all: () => [...self.data.licenses].sort((a,b) => b.id - a.id)
+        };
+      }
+      if (/SELECT \* FROM licenses WHERE username = \? AND password = \?/i.test(s)) {
+        return {
+          get: (u, p) => self.data.licenses.find(c => c.username === u && c.password === p)
+        };
+      }
+      if (/SELECT \* FROM licenses WHERE username = \?/i.test(s)) {
+        return {
+          get: (u) => self.data.licenses.find(c => c.username === u)
+        };
+      }
+      if (/SELECT \* FROM licenses WHERE license_key = \?/i.test(s)) {
+        return {
+          get: (k) => self.data.licenses.find(c => c.license_key === k)
+        };
+      }
+      if (/SELECT \* FROM licenses WHERE id = \?/i.test(s)) {
+        return {
+          get: (id) => self.data.licenses.find(c => c.id === Number(id))
+        };
+      }
+      if (/INSERT INTO licenses/i.test(s)) {
+        return {
+          run: (username, password, licenseKey, expiresAt, boundP2p, notes, createdAt) => {
+            if (self.data.licenses.some(c => c.username === username)) {
+              throw new Error("UNIQUE constraint failed: licenses.username already exists");
+            }
+            const id = (self.data.licenses.reduce((max, c) => Math.max(max, c.id || 0), 0) || 0) + 1;
+            const newClient = {
+              id,
+              username,
+              password,
+              license_key: licenseKey,
+              expires_at: expiresAt,
+              is_active: 1,
+              max_devices: 1,
+              bound_device: null,
+              bound_p2p_account: boundP2p,
+              p2p_gmail: null,
+              p2p_password: null,
+              balance_usdt: "0.0000",
+              today_orders: 0,
+              today_fiat: 0,
+              bot_status: "IDLE",
+              desk_status: "OFFLINE",
+              current_activity: "Idle",
+              last_seen_at: null,
+              notes,
+              created_at: createdAt,
+              last_login_at: null
+            };
+            self.data.licenses.push(newClient);
+            self.save();
+            return { lastInsertRowid: id };
+          }
+        };
+      }
+      if (/DELETE FROM licenses WHERE id = \?/i.test(s)) {
+        return {
+          run: (id) => {
+            self.data.licenses = self.data.licenses.filter(c => c.id !== Number(id));
+            self.save();
+          }
+        };
+      }
+
+      // Updates
+      return {
+        run: (...args) => {
+          const id = Number(args[args.length - 1]);
+          const client = self.data.licenses.find(c => c.id === id);
+          if (!client) return;
+
+          if (/UPDATE licenses SET is_active = \?/i.test(s)) {
+            client.is_active = Number(args[0]);
+          } else if (/UPDATE licenses SET expires_at = \?, is_active = 1/i.test(s)) {
+            client.expires_at = args[0];
+            client.is_active = 1;
+          } else if (/UPDATE licenses SET bound_p2p_account = NULL/i.test(s)) {
+            client.bound_p2p_account = null;
+          } else if (/UPDATE licenses SET bound_p2p_account = \?/i.test(s)) {
+            client.bound_p2p_account = args[0];
+          } else if (/UPDATE licenses SET p2p_gmail = \?/i.test(s)) {
+            client.p2p_gmail = args[0];
+          } else if (/UPDATE licenses SET p2p_password = \?/i.test(s)) {
+            client.p2p_password = args[0];
+          } else if (/UPDATE licenses SET bound_device = \?/i.test(s)) {
+            client.bound_device = args[0];
+          } else if (/UPDATE licenses SET last_login_at = \?/i.test(s)) {
+            client.last_login_at = args[0];
+          } else if (/UPDATE licenses SET balance_usdt = COALESCE/i.test(s)) {
+            if (args[0] != null) client.balance_usdt = args[0];
+            client.today_orders = Number(args[1]) || 0;
+            client.today_fiat = Number(args[2]) || 0;
+            client.bot_status = args[3];
+            client.desk_status = args[4];
+            client.current_activity = args[5];
+            client.last_seen_at = args[6];
+          }
+          self.save();
+        }
+      };
+    }
+  }
+
+  db = new JsonDbAdapter(JSON_DB_FILE);
 }
 
-// Setup default admin credentials
+// -------------------------------------------------------------
+// Admin Password Setup
+// -------------------------------------------------------------
 const DEFAULT_ADMIN_PASS = process.env.ADMIN_PASSWORD || 'Admin@AcePro2026';
 const getAdminPass = db.prepare("SELECT value FROM admin_config WHERE key = 'admin_password'");
 const adminRow = getAdminPass.get();
