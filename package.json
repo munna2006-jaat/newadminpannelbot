@@ -1,0 +1,9 @@
+{
+  "name": "ace-pro-bot-master",
+  "version": "5.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node admin-server/server.js",
+    "build": "cd admin-server && npm install"
+  }
+}
