@@ -71,6 +71,7 @@ const minAmount = document.getElementById("minAmount");
 const maxAmount = document.getElementById("maxAmount");
 const maxSessionAmount = document.getElementById("maxSessionAmount");
 const acceptLimit = document.getElementById("acceptLimit");
+const maxConcurrent = document.getElementById("maxConcurrent");
 const refreshSeconds = document.getElementById("refreshSeconds");
 const acceptMs = document.getElementById("acceptMs");
 const acceptMaxAttempts = document.getElementById("acceptMaxAttempts");
@@ -176,7 +177,7 @@ function renderState(state) {
   const stats = state.stats || {};
   walletBalance.textContent = stats.balanceUsdt || "0.0000";
   acceptedCount.textContent = stats.acceptedCount || 0;
-  const limit = state.settings?.acceptLimit || 5;
+  const limit = state.settings?.acceptLimit || 3;
   sessionPair.textContent = `${stats.sessionAccepted || 0} / ${limit}`;
   totalAccepted.textContent = stats.totalAccepted || 0;
 
@@ -393,7 +394,8 @@ function hydrateSettings(settings) {
   minAmount.value = settings.minAmount != null ? settings.minAmount : 1000;
   maxAmount.value = settings.maxAmount != null ? settings.maxAmount : 50000;
   maxSessionAmount.value = settings.maxSessionAmount != null ? settings.maxSessionAmount : 0;
-  acceptLimit.value = settings.acceptLimit != null ? settings.acceptLimit : 5;
+  acceptLimit.value = settings.acceptLimit != null ? settings.acceptLimit : 3;
+  if (maxConcurrent) maxConcurrent.value = settings.maxConcurrent != null ? settings.maxConcurrent : 3;
   refreshSeconds.value = settings.refreshSeconds != null ? settings.refreshSeconds : 5;
   acceptMs.value = settings.acceptMs != null ? settings.acceptMs : 120;
   acceptMaxAttempts.value = settings.acceptMaxAttempts != null ? settings.acceptMaxAttempts : 5;
@@ -417,7 +419,8 @@ saveSettingsBtn.addEventListener("click", () => {
     minAmount: Number(minAmount.value) || 0,
     maxAmount: Number(maxAmount.value) || 50000,
     maxSessionAmount: Number(maxSessionAmount.value) || 0,
-    acceptLimit: Number(acceptLimit.value) || 5,
+    acceptLimit: Number(acceptLimit.value) || 3,
+    maxConcurrent: Number(maxConcurrent ? maxConcurrent.value : 3) || 3,
     refreshSeconds: Number(refreshSeconds.value) || 5,
     acceptMs: Number(acceptMs.value) || 120,
     acceptMaxAttempts: Number(acceptMaxAttempts.value) || 5,

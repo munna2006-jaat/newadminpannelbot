@@ -7,7 +7,8 @@ const DEFAULT_SETTINGS = {
   minAmount: 1000,
   maxAmount: 50000,
   maxSessionAmount: 0, // 0 = no cap
-  acceptLimit: 5,
+  acceptLimit: 3,
+  maxConcurrent: 3,
   refreshSeconds: 5,
   acceptMs: 120, // gap between debounce retries in ms
   acceptMaxAttempts: 5,
@@ -222,7 +223,8 @@ function broadcastState() {
           chrome.tabs.sendMessage(t.id, {
             type: "STATE_UPDATE",
             isRunning: state.isRunning,
-            settings: state.settings
+            settings: state.settings,
+            stats: state.stats
           }).catch(() => {});
         }
       }
@@ -394,10 +396,20 @@ async function acceptPayoutOrder(payoutId, amount, source = "WS") {
     return;
   }
 
-  // Check session limit caps
-  if (state.settings.acceptLimit > 0 && state.stats.sessionAccepted >= state.settings.acceptLimit) {
-    addLog(`Session limit of ${state.settings.acceptLimit} orders reached. Stopping bot.`, "warning");
-    stopBot("Session limit reached");
+  // Check session limit caps (Max 3 orders)
+  const maxSession = Number(state.settings.acceptLimit) || 3;
+  if (maxSession > 0 && state.stats.sessionAccepted >= maxSession) {
+    addLog(`🛑 Limit reached: Maximum of ${maxSession} payout requests completed (${state.stats.sessionAccepted}/${maxSession}). Stopping bot.`, "warning");
+    stopBot(`Limit of ${maxSession} orders reached`);
+    inFlightOrders.delete(payoutId);
+    return;
+  }
+
+  // Check active simultaneous in-processing limit (Max 3 active orders)
+  const maxActive = Number(state.settings.maxConcurrent) || 3;
+  const currentActive = (state.orders || []).filter(o => o.status === "PROCESSING" || o.status === "AWAITING_SETTLEMENT").length;
+  if (currentActive >= maxActive) {
+    addLog(`⏳ Paused: Already ${currentActive} orders currently in processing (Limit: ${maxActive}). Settle them first.`, "info");
     inFlightOrders.delete(payoutId);
     return;
   }
@@ -474,8 +486,13 @@ async function acceptPayoutOrder(payoutId, amount, source = "WS") {
         state.orders.unshift(newOrder);
         chrome.storage.local.set({ orders: state.orders, stats: state.stats });
 
-        addLog(`🎉 SUCCESS! Order accepted: ₹${amount.toLocaleString('en-IN')} in ${totalElapsedMs}ms!`, "success");
+        addLog(`🎉 SUCCESS! Order accepted: ₹${amount.toLocaleString('en-IN')} in ${totalElapsedMs}ms! (Session: ${state.stats.sessionAccepted}/${maxSession})`, "success");
         sendTelegramAlert(newOrder);
+
+        if (maxSession > 0 && state.stats.sessionAccepted >= maxSession) {
+          addLog(`🛑 Limit reached: Successfully grabbed ${state.stats.sessionAccepted}/${maxSession} payout requests! Stopping bot.`, "warning");
+          stopBot(`Limit of ${maxSession} orders reached`);
+        }
 
         // Fetch fresh orders & balance
         refreshLiveOrders();
@@ -814,7 +831,16 @@ function stopBot(reason = "User stopped") {
 chrome.storage.local.get([
   "settings", "license", "orders", "token", "wsToken", "userId", "p2pAccountId", "p2pGmail", "p2pPassword", "stats"
 ], (data) => {
-  if (data.settings) state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
+  if (data.settings) {
+    state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
+    if (state.settings.acceptLimit === 5 || !state.settings.acceptLimit) {
+      state.settings.acceptLimit = 3;
+    }
+    if (!state.settings.maxConcurrent) {
+      state.settings.maxConcurrent = 3;
+    }
+    chrome.storage.local.set({ settings: state.settings });
+  }
   if (!state.settings.licenseServerUrl || state.settings.licenseServerUrl.includes("localhost")) {
     state.settings.licenseServerUrl = "https://newadminpannelbot-1.onrender.com";
     chrome.storage.local.set({ settings: state.settings });
@@ -868,8 +894,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 1.5 In-Page DOM Button Auto-Accept Notification
   if (message.type === "DOM_ORDER_CLICKED") {
+    const maxSession = Number(state.settings.acceptLimit) || 3;
+    if (maxSession > 0 && state.stats.sessionAccepted >= maxSession) {
+      addLog(`🛑 Limit reached: Already completed ${state.stats.sessionAccepted}/${maxSession} payout requests. Stopping bot.`, "warning");
+      stopBot(`Limit of ${maxSession} orders reached`);
+      return;
+    }
+
     const amt = Number(message.amount) || 0;
-    addLog(`⚡ [In-Page Engine] Instant accepted order: ₹${amt.toLocaleString('en-IN')}!`, "success");
     state.stats.acceptedCount++;
     state.stats.sessionAccepted++;
     state.stats.totalAccepted++;
@@ -878,7 +910,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       state.stats.totalAmount += amt;
     }
     state.stats.lastAcceptAt = Date.now();
+    addLog(`⚡ [In-Page Engine] Instant accepted order: ₹${amt.toLocaleString('en-IN')}! (${state.stats.sessionAccepted}/${maxSession})`, "success");
     chrome.storage.local.set({ stats: state.stats });
+
+    if (maxSession > 0 && state.stats.sessionAccepted >= maxSession) {
+      addLog(`🛑 Limit reached: Successfully grabbed ${state.stats.sessionAccepted}/${maxSession} payout requests! Stopping bot.`, "warning");
+      stopBot(`Limit of ${maxSession} orders reached`);
+    }
+
     broadcastState();
     setTimeout(() => {
       fetchBalance();

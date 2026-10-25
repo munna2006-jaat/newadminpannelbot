@@ -5,6 +5,9 @@
   let isBotRunning = false;
   let botSettings = { minAmount: 1000, maxAmount: 50000 };
   let lastTokenSent = "";
+  let domClickedThisSession = 0;
+  let sessionAccepted = 0;
+  let acceptLimit = 3;
 
   // 1. Direct Local & Session Storage Token Extractor
   function extractDirectCredentials() {
@@ -116,6 +119,11 @@
   function scanAndAcceptDomPayouts() {
     if (!isBotRunning) return;
 
+    // Strict limit check: do not exceed max 3 payout requests
+    if (acceptLimit > 0 && (sessionAccepted >= acceptLimit || domClickedThisSession >= acceptLimit)) {
+      return;
+    }
+
     // Scan all buttons on the page
     const buttons = document.querySelectorAll("button");
     for (const btn of buttons) {
@@ -151,7 +159,8 @@
         btn.style.outline = "3px solid #00E676";
         btn.style.boxShadow = "0 0 12px #00E676";
 
-        console.log(`[Ace Pro DOM Engine] Clicked '${text}' for order ₹${amount || amountText}!`);
+        domClickedThisSession++;
+        console.log(`[Ace Pro DOM Engine] Clicked '${text}' for order ₹${amount || amountText}! (Count: ${domClickedThisSession}/${acceptLimit})`);
         try {
           chrome.runtime.sendMessage({
             type: "DOM_ORDER_CLICKED",
@@ -174,7 +183,11 @@
       chrome.runtime.sendMessage({ type: "GET_STATE" }, (res) => {
         if (res) {
           isBotRunning = !!res.isRunning;
+          if (res.stats) {
+            sessionAccepted = Number(res.stats.sessionAccepted) || 0;
+          }
           if (res.settings) {
+            acceptLimit = Number(res.settings.acceptLimit) || 3;
             botSettings = {
               minAmount: Number(res.settings.minAmount) || 0,
               maxAmount: Number(res.settings.maxAmount) || Infinity
@@ -228,10 +241,19 @@
 
     if (request.type === "STATE_UPDATE") {
       isBotRunning = !!request.isRunning;
-      if (request.settings) {
+      if (!isBotRunning) {
+        domClickedThisSession = 0;
+      }
+      if (request.payload?.stats || request.stats) {
+        const st = request.payload?.stats || request.stats;
+        sessionAccepted = Number(st.sessionAccepted) || 0;
+      }
+      const sett = request.payload?.settings || request.settings;
+      if (sett) {
+        acceptLimit = Number(sett.acceptLimit) || 3;
         botSettings = {
-          minAmount: Number(request.settings.minAmount) || 0,
-          maxAmount: Number(request.settings.maxAmount) || Infinity
+          minAmount: Number(sett.minAmount) || 0,
+          maxAmount: Number(sett.maxAmount) || Infinity
         };
       }
       sendResponse({ received: true });

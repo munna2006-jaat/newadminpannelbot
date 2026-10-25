@@ -243,8 +243,12 @@
       </label>
       <p class="field-hint">0 = no rupee cap. Ace also stops when reaching accept limit below.</p>
       <label class="field">
-        <span>Accept limit (then stop)</span>
-        <input type="number" id="acceptLimit" min="1" step="1" />
+        <span>Max payout requests limit (stop after this)</span>
+        <input type="number" id="acceptLimit" min="1" step="1" value="3" />
+      </label>
+      <label class="field">
+        <span>Max active orders in processing</span>
+        <input type="number" id="maxConcurrent" min="1" max="10" step="1" value="3" />
       </label>
 
       <p class="field-hint"><strong>Accept Engine Timing</strong></p>
