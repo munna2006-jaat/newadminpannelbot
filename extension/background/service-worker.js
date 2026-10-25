@@ -58,6 +58,7 @@ let state = {
 };
 
 let wsInstance = null;
+let runningTickTimer = null;
 let wsHeartbeatTimer = null;
 let pollTimer = null;
 let licenseCheckTimer = null;
@@ -77,6 +78,122 @@ function addLog(message, type = "info") {
   broadcastState();
 }
 
+
+// -------------------------------------------------------------
+// Active Desk Tab Credential Synchronizer & Keepalive
+// -------------------------------------------------------------
+async function syncDeskTabAndToken() {
+  try {
+    const tabs = await chrome.tabs.query({ url: "*://welcome.p2p-expert-traders.com/*" });
+    if (!tabs || tabs.length === 0) {
+      state.deskTabConnected = false;
+      return false;
+    }
+
+    state.lastDeskTabPing = Date.now();
+    state.deskTabConnected = true;
+
+    const targetTab = tabs[0];
+    if (!targetTab || !targetTab.id) return true;
+
+    // Ping content script; if not responsive, inject content.js immediately
+    chrome.tabs.sendMessage(targetTab.id, { type: "PING" }, (res) => {
+      if (chrome.runtime.lastError || !res) {
+        chrome.scripting.executeScript({
+          target: { tabId: targetTab.id },
+          files: ["content/content.js"]
+        }).catch(() => {});
+      }
+    });
+
+    // Proactively extract token directly from localStorage/sessionStorage
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: targetTab.id },
+      func: () => {
+        let token = "";
+        let wsToken = "";
+        let userId = "";
+
+        const jwt = localStorage.getItem("jwt");
+        if (jwt && typeof jwt === "string" && jwt.startsWith("ey")) {
+          token = jwt.trim();
+        }
+
+        const traderRaw = localStorage.getItem("TRADER_USER");
+        if (traderRaw) {
+          try {
+            const u = JSON.parse(traderRaw);
+            if (!token && u.token) token = u.token;
+            if (!token && u.accessToken) token = u.accessToken;
+            if (!token && u.jwt) token = u.jwt;
+            if (u.webSocketToken || u.wsToken) wsToken = u.webSocketToken || u.wsToken;
+            if (u.userId || u.id || u.email) userId = String(u.userId || u.id || u.email);
+          } catch (e) {}
+        }
+
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          const val = localStorage.getItem(k);
+          if (!val) continue;
+
+          if (!token && typeof val === "string" && val.startsWith("ey") && val.split(".").length === 3) {
+            token = val.trim();
+          }
+
+          if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
+            try {
+              const obj = JSON.parse(val);
+              if (obj && typeof obj === "object") {
+                if (!token && obj.token) token = obj.token;
+                if (!token && obj.accessToken) token = obj.accessToken;
+                if (!token && obj.jwt) token = obj.jwt;
+                if (!wsToken && (obj.webSocketToken || obj.wsToken)) wsToken = obj.webSocketToken || obj.wsToken;
+                if (!userId && (obj.userId || obj.id || obj.email)) userId = String(obj.userId || obj.id || obj.email);
+              }
+            } catch (e) {}
+          }
+        }
+
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          const val = sessionStorage.getItem(k);
+          if (!val) continue;
+          if (!token && typeof val === "string" && val.startsWith("ey") && val.split(".").length === 3) {
+            token = val.trim();
+          }
+        }
+
+        return { token, wsToken: wsToken || token, userId };
+      }
+    });
+
+    if (results && results[0] && results[0].result) {
+      const extracted = results[0].result;
+      if (extracted.token && extracted.token !== state.token) {
+        state.token = extracted.token;
+        state.wsToken = extracted.wsToken || extracted.token;
+        if (extracted.userId) state.userId = extracted.userId;
+        chrome.storage.local.set({
+          token: state.token,
+          wsToken: state.wsToken,
+          userId: state.userId
+        });
+        addLog("⚡ Desk token auto-synchronized! Connected.", "success");
+        fetchBalance();
+        refreshLiveOrders();
+        if (state.isRunning) {
+          connectWebSocket();
+          pollNewPayouts();
+        }
+        broadcastState();
+      }
+    }
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 function broadcastState() {
   const payload = {
     isRunning: state.isRunning,
@@ -85,7 +202,7 @@ function broadcastState() {
     userId: state.userId,
     p2pAccountId: state.p2pAccountId,
     p2pGmail: state.p2pGmail,
-    deskTabConnected: (Date.now() - state.lastDeskTabPing) < 15000,
+    deskTabConnected: state.deskTabConnected || (Date.now() - state.lastDeskTabPing) < 15000,
     license: state.license,
     stats: state.stats,
     settings: state.settings,
@@ -97,6 +214,20 @@ function broadcastState() {
     type: "STATE_UPDATE",
     payload
   }).catch(() => {});
+
+  chrome.tabs.query({ url: "*://welcome.p2p-expert-traders.com/*" }, (tabs) => {
+    if (tabs && tabs.length > 0) {
+      for (const t of tabs) {
+        if (t.id) {
+          chrome.tabs.sendMessage(t.id, {
+            type: "STATE_UPDATE",
+            isRunning: state.isRunning,
+            settings: state.settings
+          }).catch(() => {});
+        }
+      }
+    }
+  });
 }
 
 // -------------------------------------------------------------
@@ -635,14 +766,30 @@ function startBot() {
   addLog("🚀 Ace Pro Bot Started! Monitoring orders...", "success");
   ensureOffscreenDocument();
 
-  if (state.settings.orderSource === "websocket") {
-    connectWebSocket();
-  } else {
+  // Active sync immediately
+  syncDeskTabAndToken().then(() => {
+    if (state.settings.orderSource === "websocket") {
+      connectWebSocket();
+    }
     pollNewPayouts();
-    if (pollTimer) clearInterval(pollTimer);
-    const secs = Math.max(1, Number(state.settings.refreshSeconds) || 5);
-    pollTimer = setInterval(pollNewPayouts, secs * 1000);
-  }
+  });
+
+  if (pollTimer) clearInterval(pollTimer);
+  const secs = Math.max(1, Number(state.settings.refreshSeconds) || 3);
+  pollTimer = setInterval(pollNewPayouts, secs * 1000);
+
+  // Background keep-alive & continuous polling backup
+  if (runningTickTimer) clearInterval(runningTickTimer);
+  runningTickTimer = setInterval(async () => {
+    if (!state.isRunning) {
+      clearInterval(runningTickTimer);
+      return;
+    }
+    await syncDeskTabAndToken();
+    if (state.token) {
+      pollNewPayouts();
+    }
+  }, 2000);
 
   fetchBalance();
   refreshLiveOrders();
@@ -655,6 +802,8 @@ function stopBot(reason = "User stopped") {
   disconnectWebSocket();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
+  if (runningTickTimer) clearInterval(runningTickTimer);
+  runningTickTimer = null;
   addLog(`⏹️ Ace Pro Bot Stopped (${reason}).`, "info");
   broadcastState();
 }
@@ -698,21 +847,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 1. Get State
   if (message.type === "GET_STATE") {
-    sendResponse({
-      isRunning: state.isRunning,
-      hasToken: !!state.token,
-      hasWsToken: !!state.wsToken,
-      userId: state.userId,
-      p2pAccountId: state.p2pAccountId,
-      p2pGmail: state.p2pGmail,
-      deskTabConnected: (Date.now() - state.lastDeskTabPing) < 15000,
-      license: state.license,
-      stats: state.stats,
-      settings: state.settings,
-      orders: state.orders.slice(0, 50),
-      logs: state.logs.slice(0, 50)
+    syncDeskTabAndToken().then(() => {
+      sendResponse({
+        isRunning: state.isRunning,
+        hasToken: !!state.token,
+        hasWsToken: !!state.wsToken,
+        userId: state.userId,
+        p2pAccountId: state.p2pAccountId,
+        p2pGmail: state.p2pGmail,
+        deskTabConnected: state.deskTabConnected || (Date.now() - state.lastDeskTabPing) < 15000,
+        license: state.license,
+        stats: state.stats,
+        settings: state.settings,
+        orders: state.orders.slice(0, 50),
+        logs: state.logs.slice(0, 50)
+      });
     });
     return true;
+  }
+
+  // 1.5 In-Page DOM Button Auto-Accept Notification
+  if (message.type === "DOM_ORDER_CLICKED") {
+    const amt = Number(message.amount) || 0;
+    addLog(`⚡ [In-Page Engine] Instant accepted order: ₹${amt.toLocaleString('en-IN')}!`, "success");
+    state.stats.acceptedCount++;
+    state.stats.sessionAccepted++;
+    state.stats.totalAccepted++;
+    if (amt > 0) {
+      state.stats.sessionAmount += amt;
+      state.stats.totalAmount += amt;
+    }
+    state.stats.lastAcceptAt = Date.now();
+    chrome.storage.local.set({ stats: state.stats });
+    broadcastState();
+    setTimeout(() => {
+      fetchBalance();
+      refreshLiveOrders();
+    }, 1000);
+    return;
   }
 
   // 2. Desk Tab Heartbeat
@@ -937,4 +1109,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true;
   }
+});
+
+// Auto-sync tab on extension install / startup
+chrome.runtime.onInstalled.addListener(() => {
+  syncDeskTabAndToken();
+});
+chrome.runtime.onStartup.addListener(() => {
+  syncDeskTabAndToken();
 });
