@@ -655,3 +655,12 @@ setInterval(() => {
     if (state) renderState(state);
   });
 }, 3000);
+
+const btnResetSession = document.getElementById("btnResetSession");
+if (btnResetSession) {
+  btnResetSession.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "RESET_SESSION" }, () => {
+      chrome.runtime.sendMessage({ type: "GET_STATE" }, renderState);
+    });
+  });
+}

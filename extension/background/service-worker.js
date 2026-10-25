@@ -425,7 +425,11 @@ async function acceptPayoutOrder(payoutId, amount, source = "WS") {
   addLog(`🎯 TARGET IN RANGE! Amount: ₹${amount.toLocaleString('en-IN')} (Source: ${source}, ID: ${payoutId.slice(0, 8)})`, "info");
 
   const apiBase = state.settings.apiBase || "https://welcome.p2p-expert-traders.com";
-  const acceptUrl = `${apiBase}/api/trade-api/payouts/trader/${payoutId}/accept`;
+  // Support both PWA SvelteKit accept endpoint and classic portal endpoint
+  const acceptUrls = [
+    `${apiBase}/api/trade-api/trader-cabinet-pwa/payouts/${payoutId}/accept`,
+    `${apiBase}/api/trade-api/payouts/trader/${payoutId}/accept`
+  ];
   const maxAttempts = Number(state.settings.acceptMaxAttempts) || 5;
   const delayMs = Number(state.settings.acceptMs) || 120;
 
@@ -434,20 +438,24 @@ async function acceptPayoutOrder(payoutId, amount, source = "WS") {
       if (!state.isRunning) break;
 
       const tReq = Date.now();
-      let res;
-      try {
-        res = await fetch(acceptUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${state.token}`,
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/plain, */*"
-          },
-          body: JSON.stringify({})
-        });
-      } catch (networkErr) {
-        // Fallback to in-page fetch via desk tab if network blocked
-        res = await executeInPageFetch(acceptUrl, "POST", { "Content-Type": "application/json" });
+      let res = null;
+
+      for (const acceptUrl of acceptUrls) {
+        try {
+          res = await fetch(acceptUrl, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${state.token}`,
+              "Content-Type": "application/json",
+              "Accept": "application/json, text/plain, */*"
+            },
+            body: JSON.stringify({})
+          });
+          if (res && res.status >= 200 && res.status < 300) break;
+        } catch (networkErr) {
+          res = await executeInPageFetch(acceptUrl, "POST", { "Content-Type": "application/json" });
+          if (res && res.status >= 200 && res.status < 300) break;
+        }
       }
 
       const elapsedMs = Date.now() - tReq;
@@ -656,33 +664,42 @@ async function pollNewPayouts() {
   state.stats.lastCycleAt = Date.now();
 
   const apiBase = state.settings.apiBase || "https://welcome.p2p-expert-traders.com";
-  const pollUrl = `${apiBase}/api/trade-api/payouts/new`;
+  // Support both PWA SvelteKit endpoint and classic portal endpoint
+  const pollEndpoints = [
+    `${apiBase}/api/trade-api/trader-cabinet-pwa/payouts/new`,
+    `${apiBase}/api/trade-api/payouts/new`
+  ];
 
-  try {
-    let res = await fetch(pollUrl, {
-      headers: {
-        "Authorization": `Bearer ${state.token}`,
-        "Accept": "application/json"
+  for (const pollUrl of pollEndpoints) {
+    try {
+      let res = await fetch(pollUrl, {
+        headers: {
+          "Authorization": `Bearer ${state.token}`,
+          "Accept": "application/json"
+        }
+      });
+
+      if (res.status === 401) {
+        addLog("Desk token expired during poll. Keep portal open.", "error");
+        return;
       }
-    });
 
-    if (res.status === 401) {
-      addLog("Desk token expired during poll. Open desk tab.", "error");
-      return;
-    }
-
-    if (res.ok) {
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : (data.content || data.payouts || []);
-      for (const item of list) {
-        const pid = String(item.id || item.payoutId);
-        const amt = Number(item.fiatAmount || item.amount || 0);
-        if (pid && amt > 0 && !seenOrderIds.has(pid)) {
-          acceptPayoutOrder(pid, amt, "Polling");
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.content || data.payouts || data.data || []);
+        if (list && list.length > 0) {
+          for (const item of list) {
+            const pid = String(item.id || item.payoutId);
+            const amt = Number(item.fiatAmount || item.amount || 0);
+            if (pid && amt > 0 && !seenOrderIds.has(pid)) {
+              acceptPayoutOrder(pid, amt, "Polling");
+            }
+          }
+          break; // Got orders, no need to query second endpoint
         }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 }
 
 // -------------------------------------------------------------
@@ -780,7 +797,12 @@ function startBot() {
   }
 
   state.isRunning = true;
-  addLog("🚀 Ace Pro Bot Started! Monitoring orders...", "success");
+  // Always reset session counters when starting so it grabs a fresh batch of 3 orders
+  state.stats.sessionAccepted = 0;
+  state.stats.sessionAmount = 0;
+  chrome.storage.local.set({ stats: state.stats });
+
+  addLog(`🚀 Ace Pro Bot Started! Target: ${state.settings.acceptLimit || 3} payout requests.`, "success");
   ensureOffscreenDocument();
 
   // Active sync immediately
@@ -847,7 +869,13 @@ chrome.storage.local.get([
   }
   if (data.license) state.license = data.license;
   if (data.orders) state.orders = data.orders;
-  if (data.stats) state.stats = { ...state.stats, ...data.stats };
+  if (data.stats) {
+    state.stats = { ...state.stats, ...data.stats };
+    // Clear out stuck past sessions so it always starts fresh
+    state.stats.sessionAccepted = 0;
+    state.stats.sessionAmount = 0;
+    chrome.storage.local.set({ stats: state.stats });
+  }
   if (data.token) state.token = data.token;
   if (data.wsToken) state.wsToken = data.wsToken;
   if (data.userId) state.userId = data.userId;
@@ -870,6 +898,18 @@ chrome.storage.local.get([
 // -------------------------------------------------------------
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return;
+
+
+  // Reset Session Counter
+  if (message.type === "RESET_SESSION") {
+    state.stats.sessionAccepted = 0;
+    state.stats.sessionAmount = 0;
+    chrome.storage.local.set({ stats: state.stats });
+    addLog("Session counter reset to 0.", "info");
+    broadcastState();
+    sendResponse({ success: true, sessionAccepted: 0 });
+    return;
+  }
 
   // 1. Get State
   if (message.type === "GET_STATE") {

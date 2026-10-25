@@ -113,8 +113,8 @@
   }
   injectBridge();
 
-  // 4. In-Page DOM Auto-Accept Engine (Direct UI Grabbing)
-  const clickedButtons = new WeakSet();
+  // 4. In-Page DOM Auto-Accept Engine (Unified for Desktop /payouts & PWA /pwa/app/buy)
+  const clickedItems = new WeakSet();
 
   function scanAndAcceptDomPayouts() {
     if (!isBotRunning) return;
@@ -124,15 +124,36 @@
       return;
     }
 
-    // Scan all buttons on the page
+    const minAmt = Number(botSettings.minAmount) || 0;
+    const maxAmt = Number(botSettings.maxAmount) || Infinity;
+
+    // A. Check if SvelteKit PWA Accept Drawer is open on screen
+    const drawerAcceptBtn = document.querySelector('[data-automation*="acceptPayoutDrawer_acceptButton"]') ||
+                            document.querySelector('.accept-drawer button.accept-drawer__action') ||
+                            document.querySelector('.accept-drawer button:not([data-automation*="Close"])');
+    if (drawerAcceptBtn && !drawerAcceptBtn.disabled && !clickedItems.has(drawerAcceptBtn)) {
+      clickedItems.add(drawerAcceptBtn);
+      drawerAcceptBtn.click();
+      drawerAcceptBtn.style.outline = "3px solid #00E676";
+      domClickedThisSession++;
+      console.log(`[Ace Pro PWA Engine] Confirmed PWA Drawer Accept Button! (Count: ${domClickedThisSession}/${acceptLimit})`);
+      try {
+        chrome.runtime.sendMessage({
+          type: "DOM_ORDER_CLICKED",
+          amount: 0,
+          buttonText: "PWA Drawer Accept"
+        }).catch(() => {});
+      } catch (e) {}
+      return;
+    }
+
+    // B. Check Desktop Table Buttons: <button>Accept for processing</button>
     const buttons = document.querySelectorAll("button");
     for (const btn of buttons) {
-      if (btn.disabled || clickedButtons.has(btn)) continue;
+      if (btn.disabled || clickedItems.has(btn)) continue;
 
       const text = (btn.innerText || btn.textContent || "").trim();
-      // Match "Accept for processing" or "Accept"
       if (/accept\s*for\s*processing/i.test(text) || /^accept$/i.test(text)) {
-        // Find row to extract amount
         const row = btn.closest("tr") || btn.closest(".mat-row") || btn.closest("[role='row']") || btn.parentElement?.parentElement;
         let amount = 0;
         let amountText = "";
@@ -146,19 +167,13 @@
           }
         }
 
-        // Validate amount against min and max settings
-        const minAmt = Number(botSettings.minAmount) || 0;
-        const maxAmt = Number(botSettings.maxAmount) || Infinity;
         if (amount > 0 && (amount < minAmt || amount > maxAmt)) {
-          continue; // Skip out of user range
+          continue;
         }
 
-        // Instantly Click!
-        clickedButtons.add(btn);
+        clickedItems.add(btn);
         btn.click();
         btn.style.outline = "3px solid #00E676";
-        btn.style.boxShadow = "0 0 12px #00E676";
-
         domClickedThisSession++;
         console.log(`[Ace Pro DOM Engine] Clicked '${text}' for order ₹${amount || amountText}! (Count: ${domClickedThisSession}/${acceptLimit})`);
         try {
@@ -168,8 +183,34 @@
             buttonText: text
           }).catch(() => {});
         } catch (e) {}
+        return;
+      }
+    }
 
-        break; // One per loop cycle
+    // C. Check PWA List Items on /pwa/app/buy (e.g. "1015 INR -> IMPS Awaiting processing")
+    const allDivs = document.querySelectorAll("div, a, li");
+    for (const el of allDivs) {
+      if (clickedItems.has(el)) continue;
+
+      // Must be a container holding "Awaiting processing" and amount
+      const t = el.innerText || el.textContent || "";
+      if (t.includes("Awaiting processing") && (t.includes("INR") || t.includes("₹")) && el.children.length >= 1 && el.children.length <= 6) {
+        const match = t.match(/(\d[\d\s,]*)\s*(?:INR|₹)/i) || t.match(/(?:INR|₹)\s*(\d[\d\s,]*)/i);
+        let amount = 0;
+        if (match) {
+          amount = Number(match[1].replace(/[\s,]/g, "")) || 0;
+        }
+
+        if (amount > 0 && (amount < minAmt || amount > maxAmt)) {
+          continue; // Out of user range
+        }
+
+        // Click row to open accept drawer
+        clickedItems.add(el);
+        el.click();
+        el.style.outline = "2px solid #00E676";
+        console.log(`[Ace Pro PWA Engine] Clicked PWA Order row for ₹${amount}!`);
+        break;
       }
     }
   }
