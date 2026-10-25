@@ -135,7 +135,7 @@ try {
       }
       if (/INSERT INTO licenses/i.test(s)) {
         return {
-          run: (username, password, licenseKey, expiresAt, boundP2p, notes, createdAt) => {
+          run: (username, password, licenseKey, expiresAt, boundP2p, p2pGmail, p2pPassword, notes, createdAt) => {
             if (self.data.licenses.some(c => c.username === username)) {
               throw new Error("UNIQUE constraint failed: licenses.username already exists");
             }
@@ -150,8 +150,8 @@ try {
               max_devices: 1,
               bound_device: null,
               bound_p2p_account: boundP2p,
-              p2p_gmail: null,
-              p2p_password: null,
+              p2p_gmail: p2pGmail || boundP2p || null,
+              p2p_password: p2pPassword || null,
               balance_usdt: "0.0000",
               today_orders: 0,
               today_fiat: 0,
@@ -185,7 +185,11 @@ try {
           const client = self.data.licenses.find(c => c.id === id);
           if (!client) return;
 
-          if (/UPDATE licenses SET is_active = \?/i.test(s)) {
+          if (/UPDATE licenses SET bound_p2p_account = \?, p2p_gmail = \?, p2p_password = \?/i.test(s)) {
+            client.bound_p2p_account = args[0];
+            client.p2p_gmail = args[1];
+            client.p2p_password = args[2];
+          } else if (/UPDATE licenses SET is_active = \?/i.test(s)) {
             client.is_active = Number(args[0]);
           } else if (/UPDATE licenses SET expires_at = \?, is_active = 1/i.test(s)) {
             client.expires_at = args[0];
@@ -484,7 +488,7 @@ const server = http.createServer(async (req, res) => {
 
       // 2. POST /api/admin/clients -> create new client
       if (pathname === '/api/admin/clients' && method === 'POST') {
-        const { username, password, days = 30, notes = '', p2pAccount = '' } = await parseJsonBody(req);
+        const { username, password, days = 30, notes = '', p2pAccount = '', p2pPassword = '' } = await parseJsonBody(req);
         if (!username || !password) {
           return sendJson(res, 400, { success: false, message: "Username and password required" });
         }
@@ -495,16 +499,17 @@ const server = http.createServer(async (req, res) => {
         const expiresAt = expDate.toISOString();
         const createdAt = new Date().toISOString();
         const boundP2p = p2pAccount && typeof p2pAccount === 'string' && p2pAccount.trim() ? p2pAccount.trim().toLowerCase() : null;
+        const cleanP2pPass = p2pPassword && typeof p2pPassword === 'string' && p2pPassword.trim() ? p2pPassword.trim() : null;
 
         try {
           db.prepare(`
-            INSERT INTO licenses (username, password, license_key, expires_at, is_active, bound_p2p_account, notes, created_at)
-            VALUES (?, ?, ?, ?, 1, ?, ?, ?)
-          `).run(username.trim(), password.trim(), licenseKey, expiresAt, boundP2p, notes.trim(), createdAt);
+            INSERT INTO licenses (username, password, license_key, expires_at, is_active, bound_p2p_account, p2p_gmail, p2p_password, notes, created_at)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+          `).run(username.trim(), password.trim(), licenseKey, expiresAt, boundP2p, boundP2p, cleanP2pPass, notes.trim(), createdAt);
 
           return sendJson(res, 201, {
             success: true,
-            client: { username, password, licenseKey, expiresAt, days, boundP2pAccount: boundP2p }
+            client: { username, password, licenseKey, expiresAt, days, boundP2pAccount: boundP2p, p2pPassword: cleanP2pPass }
           });
         } catch (e) {
           if (e.message && e.message.includes('UNIQUE')) {
@@ -512,6 +517,33 @@ const server = http.createServer(async (req, res) => {
           }
           return sendJson(res, 500, { success: false, message: e.message });
         }
+      }
+
+      // 2.5 POST /api/admin/clients/update-p2p -> Update P2P Email & Password directly from Admin
+      if (pathname === '/api/admin/clients/update-p2p' && method === 'POST') {
+        const { id, p2pGmail, p2pPassword } = await parseJsonBody(req);
+        if (!id) return sendJson(res, 400, { success: false, message: "Client ID is required" });
+
+        const row = db.prepare("SELECT * FROM licenses WHERE id = ?").get(id);
+        if (!row) return sendJson(res, 404, { success: false, message: "Client not found" });
+
+        const cleanGmail = p2pGmail && typeof p2pGmail === 'string' && p2pGmail.trim() ? p2pGmail.trim().toLowerCase() : null;
+        const cleanPass = p2pPassword && typeof p2pPassword === 'string' && p2pPassword.trim() ? p2pPassword.trim() : null;
+
+        db.prepare(`
+          UPDATE licenses SET
+            bound_p2p_account = ?,
+            p2p_gmail = ?,
+            p2p_password = ?
+          WHERE id = ?
+        `).run(cleanGmail, cleanGmail, cleanPass, id);
+
+        return sendJson(res, 200, {
+          success: true,
+          message: "P2P credentials updated successfully",
+          p2p_gmail: cleanGmail,
+          p2p_password: cleanPass
+        });
       }
 
       // 3. POST /api/admin/clients/toggle -> INSTANT SUSPEND / ACTIVATE

@@ -218,18 +218,29 @@ function renderTable() {
           </button>
         </td>
 
-        <!-- P2P Credentials -->
+        <!-- P2P Portal Gmail -->
         <td>
-          <div style="display:flex;flex-direction:column;gap:3px;">
-            <span class="copy-pill" style="font-size:11px;" onclick="copyText('${escapeHtml(p2pEmail)}', this)" title="P2P Email">
-              📧 ${escapeHtml(p2pEmail)}
+          ${p2pEmail !== "—" ? `
+            <span class="copy-pill" onclick="copyText('${escapeHtml(p2pEmail)}', this)" title="Click to copy P2P Gmail">
+              📧 <span>${escapeHtml(p2pEmail)}</span>
             </span>
-            ${c.p2p_password ? `
-              <span class="copy-pill" style="font-size:11px;" onclick="copyText('${escapeHtml(p2pPass)}', this)" title="P2P Password">
-                🔒 ${escapeHtml(p2pPass)}
+          ` : `
+            <span style="font-size:11.5px;color:#7B8087;font-style:italic;">Not bound yet</span>
+          `}
+        </td>
+
+        <!-- P2P Portal Password -->
+        <td>
+          ${c.p2p_password ? `
+            <div style="display:inline-flex;align-items:center;gap:5px;">
+              <span class="copy-pill" onclick="copyText('${escapeHtml(c.p2p_password)}', this)" title="Click to copy password">
+                🔒 <span id="p2pPass_${c.id}" data-masked="1">••••••••</span>
               </span>
-            ` : ''}
-          </div>
+              <button type="button" class="btn-eye" onclick="togglePassView(${c.id}, '${escapeHtml(c.p2p_password)}')" title="Show/Hide Password" style="background:#1C1F26;border:1px solid #2B2F38;border-radius:4px;color:#A0A5AD;cursor:pointer;padding:2px 6px;font-size:12px;">👁️</button>
+            </div>
+          ` : `
+            <span style="font-size:11.5px;color:#7B8087;font-style:italic;">Not set yet</span>
+          `}
         </td>
 
         <!-- USDT Balance -->
@@ -266,6 +277,7 @@ function renderTable() {
         <!-- Actions -->
         <td>
           <div class="table-actions">
+            <button class="btn-action" onclick="openEditP2pModal(${c.id})" title="Edit P2P Email & Password">✏️ P2P</button>
             <button class="btn-action" onclick="extendValidity(${c.id})" title="Extend validity by 30 days">+30d</button>
             <button class="btn-action" onclick="resetP2pLock(${c.id})" title="Clear P2P Account lock">Reset P2P</button>
             <button class="btn-action danger" onclick="deleteClient(${c.id}, '${escapeHtml(c.username)}')" title="Delete license">✕</button>
@@ -416,11 +428,13 @@ createLicenseForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   createError.textContent = "";
 
+  const newP2pPassInput = document.getElementById("newP2pPassword");
   const payload = {
     username: newUsername.value.trim(),
     password: newPassword.value.trim(),
     days: parseInt(newDays.value) || 30,
     p2pAccount: newP2pAccount.value.trim(),
+    p2pPassword: newP2pPassInput ? newP2pPassInput.value.trim() : "",
     notes: newNotes.value.trim()
   };
 
@@ -467,6 +481,83 @@ function escapeHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+
+// -------------------------------------------------------------
+// P2P Password Visibility Toggle & Edit Modal Handlers
+// -------------------------------------------------------------
+function togglePassView(id, realPass) {
+  const el = document.getElementById("p2pPass_" + id);
+  if (!el) return;
+  if (el.getAttribute("data-masked") === "1") {
+    el.textContent = realPass;
+    el.setAttribute("data-masked", "0");
+  } else {
+    el.textContent = "••••••••";
+    el.setAttribute("data-masked", "1");
+  }
+}
+
+const editP2pModal = document.getElementById("editP2pModal");
+const editP2pForm = document.getElementById("editP2pForm");
+const editP2pClientId = document.getElementById("editP2pClientId");
+const editP2pUsername = document.getElementById("editP2pUsername");
+const editP2pGmail = document.getElementById("editP2pGmail");
+const editP2pPassword = document.getElementById("editP2pPassword");
+const editP2pError = document.getElementById("editP2pError");
+const btnCloseEditP2pModal = document.getElementById("btnCloseEditP2pModal");
+const btnCancelEditP2p = document.getElementById("btnCancelEditP2p");
+
+function openEditP2pModal(id) {
+  const client = allClients.find(c => c.id === id);
+  if (!client) return;
+  editP2pClientId.value = client.id;
+  editP2pUsername.value = client.username;
+  editP2pGmail.value = client.p2p_gmail || client.bound_p2p_account || "";
+  editP2pPassword.value = client.p2p_password || "";
+  editP2pError.textContent = "";
+  editP2pModal.classList.remove("hidden");
+  editP2pGmail.focus();
+}
+
+function closeEditP2pModal() {
+  if (editP2pModal) editP2pModal.classList.add("hidden");
+}
+
+if (btnCloseEditP2pModal) btnCloseEditP2pModal.addEventListener("click", closeEditP2pModal);
+if (btnCancelEditP2p) btnCancelEditP2p.addEventListener("click", closeEditP2pModal);
+
+if (editP2pForm) {
+  editP2pForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    editP2pError.textContent = "";
+
+    const id = Number(editP2pClientId.value);
+    const p2pGmail = editP2pGmail.value.trim();
+    const p2pPassword = editP2pPassword.value.trim();
+
+    try {
+      const res = await fetch("/api/admin/clients/update-p2p", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Token": adminToken
+        },
+        body: JSON.stringify({ id, p2pGmail, p2pPassword })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeEditP2pModal();
+        fetchClients();
+      } else {
+        editP2pError.textContent = data.message || "Failed to update P2P credentials";
+      }
+    } catch (err) {
+      editP2pError.textContent = "Server error: " + err.message;
+    }
+  });
 }
 
 // Start Auth Check on Page Load

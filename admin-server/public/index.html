@@ -125,9 +125,10 @@
             <thead>
               <tr>
                 <th>Trader Username</th>
-                <th>Password</th>
+                <th>Bot Password</th>
                 <th>Remote Kill-Switch</th>
-                <th>P2P Credentials</th>
+                <th>P2P Portal Gmail</th>
+                <th>P2P Portal Password</th>
                 <th>USDT Balance</th>
                 <th>Today Grabbed</th>
                 <th>Validity / Expiry</th>
@@ -186,6 +187,12 @@
         </div>
 
         <div class="form-group">
+          <label>Pre-assign P2P Portal Password (Optional)</label>
+          <input type="text" id="newP2pPassword" placeholder="Enter P2P Portal password if known">
+          <small class="form-hint">Trader can also enter this when logging in from the bot extension.</small>
+        </div>
+
+        <div class="form-group">
           <label>Admin Notes</label>
           <input type="text" id="newNotes" placeholder="e.g. VIP client / Delhi desk">
         </div>
@@ -195,6 +202,39 @@
         <div class="modal-actions">
           <button type="button" id="btnCancelCreate" class="btn btn-secondary">Cancel</button>
           <button type="submit" id="btnSubmitCreate" class="btn btn-primary">Create License</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Edit P2P Credentials Modal -->
+  <div id="editP2pModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Edit P2P Credentials</h3>
+        <button id="btnCloseEditP2pModal" class="btn-close">&times;</button>
+      </div>
+      <form id="editP2pForm">
+        <input type="hidden" id="editP2pClientId">
+        <div class="form-group">
+          <label>Trader Username</label>
+          <input type="text" id="editP2pUsername" disabled style="opacity:0.75;background:#14171D;">
+        </div>
+        <div class="form-group">
+          <label>P2P Account Gmail</label>
+          <input type="email" id="editP2pGmail" placeholder="e.g. trader@gmail.com">
+          <small class="form-hint">Bound portal account email.</small>
+        </div>
+        <div class="form-group">
+          <label>P2P Portal Password</label>
+          <input type="text" id="editP2pPassword" placeholder="Enter P2P Portal password">
+          <small class="form-hint">This password is also entered during bot login.</small>
+        </div>
+        <p id="editP2pError" class="error-msg"></p>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelEditP2p" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="btnSubmitEditP2p" class="btn btn-primary">Save P2P Credentials</button>
         </div>
       </form>
     </div>
