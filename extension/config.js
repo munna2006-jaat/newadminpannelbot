@@ -1,7 +1,7 @@
 // config.js - Configuration for Ace Pro Bot
 const CONFIG = {
-  // Default Admin License Server URL (can also be changed inside Extension Settings)
-  DEFAULT_LICENSE_SERVER: "http://localhost:3000",
+  // Live Admin License Server URL on Render
+  DEFAULT_LICENSE_SERVER: "https://newadminpannelbot-1.onrender.com",
   
   // P2P Trader Portal API Base URL
   DEFAULT_API_BASE: "https://welcome.p2p-expert-traders.com",
