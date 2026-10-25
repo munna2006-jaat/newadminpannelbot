@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "Ace Pro",
+  "version": "5.0.0",
+  "description": "Professional automated P2P payout assistant & order acceptor.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "windows",
+    "alarms",
+    "offscreen",
+    "scripting",
+    "downloads",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "https://welcome.p2p-expert-traders.com/*",
+    "https://api.telegram.org/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Ace Pro",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://welcome.p2p-expert-traders.com/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/page-bridge.js"
+      ],
+      "matches": [
+        "https://welcome.p2p-expert-traders.com/*"
+      ]
+    }
+  ]
+}

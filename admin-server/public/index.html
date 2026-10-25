@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ace Pro v5.0 — Central Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Admin Login Modal -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="login-card">
+      <div class="login-brand">
+        <svg class="brand-shield" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L4 5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V5l-8-3z" fill="#4D9EFF"/>
+          <path d="M8.5 12.5l2.3 2.3 4.7-4.7" stroke="#0F1115" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h2>Ace Pro Control Center</h2>
+        <p>Master Administrator Authorization</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Admin Password</label>
+          <input type="password" id="adminPasswordInput" placeholder="Enter master password" required autofocus autocomplete="current-password">
+        </div>
+        <p id="loginError" class="error-msg"></p>
+        <button type="submit" class="btn btn-primary btn-block">Authenticate</button>
+      </form>
+      <p class="login-hint">Default password: <code>Admin@AcePro2026</code></p>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Container -->
+  <div id="dashboardApp" class="dashboard-wrapper hidden">
+    <!-- Top Navbar -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <svg class="brand-shield" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L4 5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V5l-8-3z" fill="#4D9EFF"/>
+          <path d="M8.5 12.5l2.3 2.3 4.7-4.7" stroke="#0F1115" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="brand-titles">
+          <h1>Ace Pro Master Hub</h1>
+          <span class="version-tag">v5.0 Enterprise</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="server-status">
+          <span class="pulse-dot"></span>
+          <span>Central License Server Online</span>
+        </div>
+        <button id="btnAdminLogout" class="btn btn-sm btn-outline">Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Metric Counters Grid -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-head">
+            <span class="metric-title">TOTAL LICENSES</span>
+            <span class="metric-icon">👥</span>
+          </div>
+          <div class="metric-value" id="statTotalUsers">0</div>
+          <div class="metric-sub">Registered bot accounts</div>
+        </div>
+
+        <div class="metric-card glow-green">
+          <div class="metric-head">
+            <span class="metric-title">ONLINE BOTS</span>
+            <span class="metric-icon">🟢</span>
+          </div>
+          <div class="metric-value" id="statOnlineUsers">0</div>
+          <div class="metric-sub">Active in the last 60s</div>
+        </div>
+
+        <div class="metric-card glow-red">
+          <div class="metric-head">
+            <span class="metric-title">SUSPENDED BOTS</span>
+            <span class="metric-icon">⛔</span>
+          </div>
+          <div class="metric-value" id="statSuspendedUsers">0</div>
+          <div class="metric-sub">Remote kill-switch active</div>
+        </div>
+
+        <div class="metric-card glow-blue">
+          <div class="metric-head">
+            <span class="metric-title">TODAY'S VOLUME</span>
+            <span class="metric-icon">₹</span>
+          </div>
+          <div class="metric-value" id="statTodayVolume">₹0</div>
+          <div class="metric-sub"><span id="statTodayOrders">0</span> orders grabbed today</div>
+        </div>
+      </section>
+
+      <!-- Action & Filter Bar -->
+      <section class="action-bar">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search by username, P2P email or license key...">
+        </div>
+        <div class="filter-group">
+          <select id="statusFilter">
+            <option value="ALL">All Statuses</option>
+            <option value="ACTIVE">Active Only</option>
+            <option value="SUSPENDED">Suspended Only</option>
+            <option value="ONLINE">Online Now</option>
+          </select>
+          <button id="btnRefresh" class="btn btn-secondary">
+            <span>🔄 Refresh</span>
+          </button>
+          <button id="btnOpenCreateModal" class="btn btn-primary">
+            <span>+ Create New License</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Clients Table Card -->
+      <section class="table-card">
+        <div class="table-responsive">
+          <table class="clients-table">
+            <thead>
+              <tr>
+                <th>Trader Username</th>
+                <th>Password</th>
+                <th>Remote Kill-Switch</th>
+                <th>P2P Credentials</th>
+                <th>USDT Balance</th>
+                <th>Today Grabbed</th>
+                <th>Validity / Expiry</th>
+                <th>Live Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="clientsTableBody">
+              <!-- Dynamically Populated via app.js -->
+            </tbody>
+          </table>
+        </div>
+        <div id="tableEmptyState" class="empty-state hidden">
+          <p>No licenses found matching your filter criteria.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Create New License Modal -->
+  <div id="createModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Create New Bot License</h3>
+        <button id="btnCloseCreateModal" class="btn-close">&times;</button>
+      </div>
+      <form id="createLicenseForm">
+        <div class="form-group">
+          <label>License Username / ID <span class="req">*</span></label>
+          <input type="text" id="newUsername" placeholder="e.g. trader_aman" required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <label>License Password <span class="req">*</span></label>
+            <button type="button" id="btnGenPass" class="btn-link">Generate Random</button>
+          </div>
+          <input type="text" id="newPassword" placeholder="Enter secure password" required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label>Validity Duration (Days)</label>
+          <div class="preset-days-row">
+            <button type="button" class="btn-chip" data-days="7">7 Days</button>
+            <button type="button" class="btn-chip active" data-days="30">30 Days</button>
+            <button type="button" class="btn-chip" data-days="90">90 Days</button>
+            <button type="button" class="btn-chip" data-days="365">1 Year</button>
+          </div>
+          <input type="number" id="newDays" value="30" min="1" max="1000" style="margin-top:8px;">
+        </div>
+
+        <div class="form-group">
+          <label>Pre-assign P2P Email (Optional)</label>
+          <input type="email" id="newP2pAccount" placeholder="e.g. trader@gmail.com (leaves open to auto-bind if empty)">
+          <small class="form-hint">Leave blank to let the license auto-bind on the trader's first login.</small>
+        </div>
+
+        <div class="form-group">
+          <label>Admin Notes</label>
+          <input type="text" id="newNotes" placeholder="e.g. VIP client / Delhi desk">
+        </div>
+
+        <p id="createError" class="error-msg"></p>
+
+        <div class="modal-actions">
+          <button type="button" id="btnCancelCreate" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="btnSubmitCreate" class="btn btn-primary">Create License</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

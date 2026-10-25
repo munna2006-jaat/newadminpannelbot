@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ace Pro v5.0</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- 1. CHECKING SCREEN -->
+  <div class="popup" id="checkingScreen">
+    <header class="header">
+      <div class="brand">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V5l-8-3z" fill="#4D9EFF"/>
+          <path d="M8.5 12.5l2.3 2.3 4.7-4.7" stroke="#0F1115" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">Ace Pro</span>
+      </div>
+    </header>
+    <main class="main checking-main" aria-live="polite">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <p class="checking-title" id="checkingTitle">Checking License & Desk</p>
+      <p class="checking-sub" id="checkingSub">Verifying credentials with central server...</p>
+    </main>
+  </div>
+
+  <!-- 2. LICENSE & P2P LOGIN SCREEN -->
+  <div class="popup hidden" id="licenseScreen">
+    <header class="header">
+      <div class="brand">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V5l-8-3z" fill="#4D9EFF"/>
+          <path d="M8.5 12.5l2.3 2.3 4.7-4.7" stroke="#0F1115" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">Ace Pro</span>
+      </div>
+    </header>
+    <main class="main license-main">
+      <!-- Remote Suspend / Kill-Switch Alert Banner -->
+      <div class="alert-banner hidden" id="suspendBanner">
+        <span class="alert-banner-icon">⚠️</span>
+        <div>
+          <strong>Access Suspended</strong>
+          <p style="margin:4px 0 0;font-size:11.5px;color:#FFC6BC;" id="suspendReason">This bot was suspended by Admin and logged out.</p>
+        </div>
+      </div>
+
+      <p class="license-kicker">Trader Authentication</p>
+      <h1 class="license-title">Activate Ace Pro</h1>
+      <p class="license-copy">Login using your bot credentials provided by admin, and connect your P2P trader account.</p>
+
+      <!-- Section 1: Admin-Generated Bot Credentials -->
+      <div class="login-section-card">
+        <div class="login-section-title">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          1. Bot License Credentials
+        </div>
+        <label class="field">
+          <span>License Username / ID</span>
+          <input type="text" id="loginUsername" class="license-input small" placeholder="e.g. trader_01" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field" style="margin-bottom:0;">
+          <span>License Password</span>
+          <input type="password" id="loginPassword" class="license-input small" placeholder="Enter license password" autocomplete="off" />
+        </label>
+      </div>
+
+      <!-- Section 2: P2P Trader Account Credentials -->
+      <div class="login-section-card">
+        <div class="login-section-title p2p-accent">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          2. P2P Portal Credentials
+        </div>
+        <label class="field">
+          <span>P2P Account Gmail / Email</span>
+          <input type="email" id="loginP2pGmail" class="license-input small" placeholder="trader@gmail.com" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field" style="margin-bottom:0;">
+          <span>P2P Account Password</span>
+          <input type="password" id="loginP2pPassword" class="license-input small" placeholder="Portal password" autocomplete="off" />
+        </label>
+      </div>
+
+      <button class="primary-btn" id="btnLogin" style="margin-top:4px;">Login & Activate Bot</button>
+      <p class="license-msg" id="licenseMsg"></p>
+      <p class="tiny-note">Locked to your P2P account. If suspended by Admin, the bot logs out instantly.</p>
+    </main>
+  </div>
+
+  <!-- 3. MAIN APP SCREEN -->
+  <div class="popup hidden" id="appScreen">
+    <header class="header">
+      <div class="brand">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V5l-8-3z" fill="#4D9EFF"/>
+          <path d="M8.5 12.5l2.3 2.3 4.7-4.7" stroke="#0F1115" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">Ace Pro</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="historyBtn" title="Payout history" aria-label="Payout history">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 8v4.2l2.6 1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9c.3.6.9 1 1.5 1.1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="refreshBtn" title="Refresh live data">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 11-2.3-5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M20 5v5h-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn" id="popOutBtn" title="Open in a movable window">
+          <svg viewBox="0 0 24 24"><path d="M14 4h6v6" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1v-4" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="main" id="appMain">
+      <section class="start-desk" id="startDesk">
+        <p class="site-name" id="siteName">p2p-expert-traders</p>
+
+        <div class="wallet-solo" id="walletBar">
+          <span class="wallet-amt" id="walletBalance">0.0000</span>
+          <span class="wallet-code" id="walletCode">USDT</span>
+        </div>
+
+        <div class="desk-stats">
+          <div class="desk-stat">
+            <span class="desk-stat-k">Accepted</span>
+            <span class="desk-stat-v" id="acceptedCount">0</span>
+          </div>
+          <div class="desk-stat">
+            <span class="desk-stat-k">Session</span>
+            <span class="desk-stat-v" id="sessionPair">0 / 5</span>
+          </div>
+          <div class="desk-stat">
+            <span class="desk-stat-k">Total</span>
+            <span class="desk-stat-v" id="totalAccepted">0</span>
+          </div>
+        </div>
+
+        <p class="range-line" id="rangeLine">₹1,000 – ₹50,000</p>
+
+        <!-- Start/Stop Toggle Switch -->
+        <button class="start-btn" id="toggleBtn" role="switch" aria-checked="false" title="Start accepting">
+          <span class="start-btn-copy">
+            <span class="start-btn-kicker" id="toggleKicker">Ready</span>
+            <span class="start-btn-label" id="toggleLabel">Start accepting</span>
+          </span>
+          <span class="toggle-track" aria-hidden="true">
+            <span class="toggle-thumb">
+              <svg viewBox="0 0 24 24" class="check-icon"><path d="M5 13l4 4L19 7" stroke="#4D9EFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </span>
+        </button>
+
+        <p class="status-line" id="statusLine">Toggle start to accept matching payouts.</p>
+        <p class="token-line" id="tokenLine">Desk tab: checking…</p>
+        <p class="token-line" id="licenseExpiryLine">License: Active</p>
+        <div class="bound-badge" id="boundAccountBadge">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+          <span id="boundAccountText">Connected</span>
+        </div>
+      </section>
+
+      <!-- Tabs Navigation -->
+      <div class="tabs">
+        <button class="tab active" data-tab="orders">Orders</button>
+        <button class="tab" data-tab="statistics">Stats</button>
+        <button class="tab" data-tab="logs" id="logsTab">Logs</button>
+      </div>
+
+      <!-- Orders Panel -->
+      <section class="tab-panel" id="ordersPanel">
+        <div id="ordersList" class="orders-list"></div>
+      </section>
+
+      <!-- Statistics Panel -->
+      <section class="tab-panel hidden" id="statisticsPanel">
+        <ul class="stats-list" id="statsList"></ul>
+        <button class="system-wide-btn" id="resetSessionBtn">Reset session counters</button>
+      </section>
+
+      <!-- Logs Panel -->
+      <section class="tab-panel hidden" id="logsPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <p style="margin:0;font-size:11px;color:#7B8087;letter-spacing:0.06em;text-transform:uppercase;font-weight:650">Event Log</p>
+          <button class="icon-btn" id="clearLogsBtn" title="Clear all logs" style="color:#7B8087;">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <ul class="stats-list" id="logsList" style="max-height:370px;"></ul>
+        <p class="stats-empty hidden" id="logsEmpty">No events logged yet.</p>
+      </section>
+    </main>
+
+    <!-- History Sheet -->
+    <section class="settings-sheet hidden" id="historyPanel" aria-label="Payout history">
+      <div class="sheet-head">
+        <p class="sheet-title">Payout History</p>
+        <button class="icon-btn" id="closeHistoryBtn" title="Close history" aria-label="Close history">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="field-hint">Recent and completed payouts from the desk.</p>
+      <div class="chips" id="statusChips" role="tablist" aria-label="Payout status"></div>
+      <p class="history-meta" id="historyMeta"></p>
+      <div id="historyList" class="orders-list history-list"></div>
+      <button class="system-wide-btn hidden" id="historyMoreBtn">Load more</button>
+    </section>
+
+    <!-- Settings Sheet -->
+    <section class="settings-sheet hidden" id="settingsPanel" aria-label="Settings">
+      <div class="sheet-head">
+        <p class="sheet-title">Bot Settings</p>
+        <button class="icon-btn" id="closeSettingsBtn" title="Close settings" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <p class="field-hint" style="margin-top:8px;"><strong>Telegram Alerts</strong></p>
+      <label class="field">
+        <span>Telegram Chat ID</span>
+        <input type="text" id="telegramChatId" placeholder="e.g. 123456789" autocomplete="off" />
+      </label>
+
+      <p class="field-hint"><strong>Payout Filtering</strong></p>
+      <label class="field">
+        <span>Min amount (₹)</span>
+        <input type="number" id="minAmount" min="0" step="100" />
+      </label>
+      <label class="field">
+        <span>Max amount (₹) — per order</span>
+        <input type="number" id="maxAmount" min="0" step="100" />
+      </label>
+      <label class="field">
+        <span>Max accepted total (₹) — session cap</span>
+        <input type="number" id="maxSessionAmount" min="0" step="100" />
+      </label>
+      <p class="field-hint">0 = no rupee cap. Ace also stops when reaching accept limit below.</p>
+      <label class="field">
+        <span>Accept limit (then stop)</span>
+        <input type="number" id="acceptLimit" min="1" step="1" />
+      </label>
+
+      <p class="field-hint"><strong>Accept Engine Timing</strong></p>
+      <label class="field">
+        <span>Refresh cycle (seconds)</span>
+        <input type="number" id="refreshSeconds" min="1" step="1" />
+      </label>
+      <label class="field">
+        <span>Accept delay / debounce gap (ms)</span>
+        <input type="number" id="acceptMs" min="10" step="10" />
+      </label>
+      <label class="field">
+        <span>Accept max attempts</span>
+        <input type="number" id="acceptMaxAttempts" min="1" step="1" />
+      </label>
+      <label class="field">
+        <span>Rate-limit wait (seconds)</span>
+        <input type="number" id="rateLimitWaitSeconds" min="1" step="1" />
+      </label>
+      <label class="field field-toggle">
+        <span>WebSocket Live Mode</span>
+        <input type="checkbox" id="orderSourceToggle" checked />
+      </label>
+      <p class="field-hint">ON = Real-time WebSocket notifications. OFF = Polling.</p>
+
+      <p class="field-hint"><strong>Central License Server</strong></p>
+      <label class="field">
+        <span>License Server URL</span>
+        <input type="text" id="licenseServerUrl" class="license-input small" placeholder="http://localhost:3000" />
+      </label>
+
+      <label class="field">
+        <span>P2P Portal API Base</span>
+        <input type="text" id="apiBase" class="license-input small" placeholder="https://welcome.p2p-expert-traders.com" />
+      </label>
+
+      <button class="primary-btn" id="saveSettingsBtn">Save Settings</button>
+      <p class="hint" id="saveHint"></p>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #24262B;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:#7B8087;">Signed in as <b id="settingsUsernameText" style="color:#E8E9ED;">trader</b></span>
+        <button class="secondary-btn danger-outline" id="clearLicenseBtn" type="button" style="padding:6px 12px;font-size:12px;">Sign Out</button>
+      </div>
+    </section>
+
+    <!-- Cancel Order Modal -->
+    <div class="modal-overlay hidden" id="cancelModal" role="presentation">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+        <p class="sheet-title" id="cancelTitle">Cancel this payout</p>
+        <p class="cancel-order-sum" id="cancelOrderSum"></p>
+        <label class="field">
+          <span>Reason / Comment</span>
+          <textarea id="cancelComment" rows="3" maxlength="240" placeholder="Why are you cancelling this payout?"></textarea>
+        </label>
+        <p class="hint error" id="cancelErr"></p>
+        <div class="modal-actions">
+          <button class="system-wide-btn" id="cancelDismissBtn" type="button">Keep Order</button>
+          <button class="danger-btn" id="cancelConfirmBtn" type="button">Cancel Payout</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Status Bar -->
+    <footer class="footer">
+      <span id="footerLeft">Keep the desk tab open</span>
+      <span class="platform-icons" id="runDotWrap">
+        <span class="run-dot" id="runDot"></span>
+      </span>
+    </footer>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

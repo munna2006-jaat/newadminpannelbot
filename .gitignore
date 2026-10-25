@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Database & logs
+*.db
+*.sqlite
+*.log
+*.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

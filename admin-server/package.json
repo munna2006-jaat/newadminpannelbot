@@ -1,0 +1,12 @@
+{
+  "name": "ace-pro-admin-server",
+  "version": "5.0.0",
+  "description": "Ace Pro Central License Server & Live Admin Management Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
