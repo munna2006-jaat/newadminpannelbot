@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
   orderSource: "websocket", // "websocket" or "poll"
   telegramChatId: "",
   apiBase: "https://welcome.p2p-expert-traders.com",
-  licenseServerUrl: (typeof CONFIG !== "undefined" && CONFIG.DEFAULT_LICENSE_SERVER) || "https://newadminpannelbot-1.onrender.com"
+  licenseServerUrl: (typeof CONFIG !== "undefined" && CONFIG.DEFAULT_LICENSE_SERVER) || "https://newacepro.site"
 };
 
 let state = {
@@ -268,7 +268,7 @@ async function verifyLicenseWithServer() {
     return false;
   }
 
-  const sUrl = (state.settings.licenseServerUrl || "https://newadminpannelbot-1.onrender.com").replace(/\/+$/, "");
+  const sUrl = (state.settings.licenseServerUrl || "https://newacepro.site").replace(/\/+$/, "");
   const currentP2p = state.p2pGmail || state.p2pAccountId || state.userId || "";
 
   try {
@@ -864,7 +864,7 @@ chrome.storage.local.get([
     chrome.storage.local.set({ settings: state.settings });
   }
   if (!state.settings.licenseServerUrl || state.settings.licenseServerUrl.includes("localhost")) {
-    state.settings.licenseServerUrl = "https://newadminpannelbot-1.onrender.com";
+    state.settings.licenseServerUrl = "https://newacepro.site";
     chrome.storage.local.set({ settings: state.settings });
   }
   if (data.license) state.license = data.license;
@@ -1019,7 +1019,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 5. User License Login Request from Popup
   if (message.type === "LICENSE_LOGIN") {
     const { username, password, p2pGmail, p2pPassword } = message.payload || {};
-    const sUrl = (state.settings.licenseServerUrl || "https://newadminpannelbot-1.onrender.com").replace(/\/+$/, "");
+    const sUrl = (state.settings.licenseServerUrl || "https://newacepro.site").replace(/\/+$/, "");
 
     fetch(`${sUrl}/api/license/login`, {
       method: "POST",

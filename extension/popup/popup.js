@@ -401,7 +401,7 @@ function hydrateSettings(settings) {
   acceptMaxAttempts.value = settings.acceptMaxAttempts != null ? settings.acceptMaxAttempts : 5;
   rateLimitWaitSeconds.value = settings.rateLimitWaitSeconds != null ? settings.rateLimitWaitSeconds : 20;
   orderSourceToggle.checked = settings.orderSource !== "poll";
-  licenseServerUrl.value = settings.licenseServerUrl || (typeof CONFIG !== "undefined" ? CONFIG.DEFAULT_LICENSE_SERVER : "https://newadminpannelbot-1.onrender.com");
+  licenseServerUrl.value = settings.licenseServerUrl || (typeof CONFIG !== "undefined" ? CONFIG.DEFAULT_LICENSE_SERVER : "https://newacepro.site");
   apiBase.value = settings.apiBase || "https://welcome.p2p-expert-traders.com";
 }
 
@@ -426,7 +426,7 @@ saveSettingsBtn.addEventListener("click", () => {
     acceptMaxAttempts: Number(acceptMaxAttempts.value) || 5,
     rateLimitWaitSeconds: Number(rateLimitWaitSeconds.value) || 20,
     orderSource: orderSourceToggle.checked ? "websocket" : "poll",
-    licenseServerUrl: licenseServerUrl.value.trim() || "https://newadminpannelbot-1.onrender.com",
+    licenseServerUrl: licenseServerUrl.value.trim() || "https://newacepro.site",
     apiBase: apiBase.value.trim() || "https://welcome.p2p-expert-traders.com"
   };
 

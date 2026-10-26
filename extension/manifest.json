@@ -14,7 +14,7 @@
     "webRequest"
   ],
   "host_permissions": [
-    "https://newadminpannelbot-1.onrender.com/*",
+    "https://newacepro.site/*",
     "https://welcome.p2p-expert-traders.com/*",
     "https://api.telegram.org/*",
     "http://localhost:*/*",
